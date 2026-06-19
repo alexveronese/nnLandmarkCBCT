@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=nnLandmark
-#SBATCH --output=/work/tesi_averonese/nnLandmark/logs/nn_land_%j.out
-#SBATCH --error=/work/tesi_averonese/nnLandmark/logs/nn_land_%j.err
+#SBATCH --output=/work/tesi_averonese/nnLandmark/logs/nn_land_plan_experiment%j.out
+#SBATCH --error=/work/tesi_averonese/nnLandmark/logs/nn_land_plan_experiment%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -22,8 +22,8 @@ DATASET_ID=001
 
 cd /homes/averonese/nnLandmark/
 
-python /nnlandmark/dataset_conversion/nnLandmark/Dataset001_STS2026/prepare_dataset_splits.py \
-    -i ${DATASET_DIR} \
-    -id ${DATASET_ID}
+nnLM_plan_experiment \
+    -d ${DATASET_ID} \
+    -pl nnUNetPlannerResEncM
 
-echo "Dataset splits prepared successfully!"
+echo "Experiment plan completed successfully!"

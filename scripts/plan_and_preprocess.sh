@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=nnLandmark
-#SBATCH --output=/work/tesi_averonese/nnLandmark/logs/nn_land_%j.out
-#SBATCH --error=/work/tesi_averonese/nnLandmark/logs/nn_land_%j.err
+#SBATCH --output=/work/tesi_averonese/nnLandmark/logs/nn_land_plan_preproc%j.out
+#SBATCH --error=/work/tesi_averonese/nnLandmark/logs/nn_land_plan_preproc%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -22,8 +22,9 @@ DATASET_ID=001
 
 cd /homes/averonese/nnLandmark/
 
-python /nnlandmark/dataset_conversion/nnLandmark/Dataset001_STS2026/prepare_dataset_splits.py \
-    -i ${DATASET_DIR} \
-    -id ${DATASET_ID}
+nnLM_plan_and_preprocess \
+     -d ${DATASET_ID} \
+     -c 3d_fullres \
+     --verify_dataset_integrity
 
-echo "Dataset splits prepared successfully!"
+echo "Plan and preprocess completed successfully!"
