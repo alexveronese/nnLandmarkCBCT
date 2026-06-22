@@ -12,6 +12,10 @@ from nnlandmark.dataset_conversion.generate_dataset_json import (
     generate_dataset_json
 )
 
+EXCLUDED_FEATURES = [
+    "basePlane"
+]
+
 def save_json(obj, file: str, indent: int = 4, sort_keys: bool = True) -> None:
     with open(file, 'w') as f:
         json.dump(obj, f, sort_keys=sort_keys, indent=indent)
@@ -57,7 +61,13 @@ def extract_flat_landmarks(json_data):
         tooth_label = "_".join(parts[1:])
 
         for feat_name, feat_value in features.items():
+            # ----------------------------
+            # exclude selected features
+            # ----------------------------
 
+            if feat_name in EXCLUDED_FEATURES:
+                continue
+            
             # ----------------------------
             # basePlane
             # ----------------------------
