@@ -8,15 +8,16 @@ import argparse
 import numpy as np
 import SimpleITK as sitk
 
-from batchgenerators.utilities.file_and_folder_operations import (
-    save_json,
-    maybe_mkdir_p
-)
-
 from nnlandmark.dataset_conversion.generate_dataset_json import (
     generate_dataset_json
 )
 
+def save_json(obj, file: str, indent: int = 4, sort_keys: bool = True) -> None:
+    with open(file, 'w') as f:
+        json.dump(obj, f, sort_keys=sort_keys, indent=indent)
+
+def maybe_mkdir_p(directory: str) -> None:
+    os.makedirs(directory, exist_ok=True)
 
 # ============================================================
 # Flatten STS landmark JSON
