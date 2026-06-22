@@ -1,253 +1,641 @@
+#!/usr/bin/env python3
+
 import os
 import json
 import glob
 import argparse
-import random
+
 import numpy as np
 import SimpleITK as sitk
-from batchgenerators.utilities.file_and_folder_operations import save_json, maybe_mkdir_p
+
+from batchgenerators.utilities.file_and_folder_operations import (
+    save_json,
+    maybe_mkdir_p
+)
+
+from nnlandmark.dataset_conversion.generate_dataset_json import (
+    generate_dataset_json
+)
+
+
+# ============================================================
+# Flatten STS landmark JSON
+# ============================================================
 
 def extract_flat_landmarks(json_data):
     """
-    Flattens the structured JSON input into a single-level dictionary:
-    {'upper_FDI_27_incisal': [x, y, z], 'upper_FDI_27_cusps_0': [x, y, z], ...}
-    It strips the patient ID prefix from the tooth key to keep labels universal.
+    Convert STS JSON structure into flat landmark dictionary.
+
+    Example:
+
+    input:
+        006_upper_FDI_27:
+            incisal:[x,y,z]
+
+    output:
+        upper_FDI_27_incisal:
+        {
+            coords:[x,y,z],
+            arch:"upper"
+        }
+
     """
+
     flat_landmarks = {}
     for tooth_key, features in json_data.items():
-        parts = tooth_key.split('_')
-        tooth_label = "_".join(parts[1:]) if len(parts) > 1 else tooth_key
-        
-        for feat_key, feat_val in features.items():
-            if feat_key == "basePlane":
-                for axis_key, axis_val in feat_val.items():
-                    flat_name = f"{tooth_label}_{feat_key}_{axis_key}"
-                    flat_landmarks[flat_name] = axis_val
-            elif isinstance(feat_val, list) and len(feat_val) > 0 and isinstance(feat_val[0], list):
-                for idx, coord in enumerate(feat_val):
-                    flat_name = f"{tooth_label}_{feat_key}_{idx}"
-                    flat_landmarks[flat_name] = coord
+        parts = tooth_key.split("_")
+
+        if "upper" in parts:
+            arch = "upper"
+        elif "lower" in parts:
+            arch = "lower"
+        else:
+            arch = None
+
+        # remove patient ID
+        tooth_label = "_".join(parts[1:])
+
+        for feat_name, feat_value in features.items():
+
+            # ----------------------------
+            # basePlane
+            # ----------------------------
+
+            if feat_name == "basePlane":
+                for axis_name, axis_value in feat_value.items():
+                    landmark_name = (
+                        f"{tooth_label}_"
+                        f"basePlane_"
+                        f"{axis_name}"
+                    )
+
+                    flat_landmarks[landmark_name] = {
+                        "coords": axis_value,
+                        "arch": arch
+                    }
+
+            # ----------------------------
+            # multiple points
+            # cusps / planar
+            # ----------------------------
+
+            elif (
+                isinstance(feat_value, list)
+                and len(feat_value) > 0
+                and isinstance(feat_value[0], list)
+            ):
+                for idx, point in enumerate(feat_value):
+                    landmark_name = (
+                        f"{tooth_label}_"
+                        f"{feat_name}_"
+                        f"{idx}"
+                    )
+
+                    flat_landmarks[landmark_name] = {
+                        "coords": point,
+                        "arch": arch
+                    }
+
+            # ----------------------------
+            # single point
+            # ----------------------------
+
             else:
-                flat_name = f"{tooth_label}_{feat_key}"
-                flat_landmarks[flat_name] = feat_val
-                
+                landmark_name = (
+                    f"{tooth_label}_"
+                    f"{feat_name}"
+                )
+
+                flat_landmarks[landmark_name] = {
+                    "coords": feat_value,
+                    "arch": arch
+                }
+
+
     return flat_landmarks
 
+# ============================================================
+# Main
+# ============================================================
+
 def main():
-    # ==========================================
-    # CLI ARGUMENT PARSING
-    # ==========================================
-    parser = argparse.ArgumentParser(description="Randomly split raw dataset and convert into nnLandmark format.")
-    parser.add_argument("-i", "--input_dir", type=str, required=True,
-                        help="Path to the single root folder containing all patient subfolders.")
-    parser.add_argument("-id", "--dataset_id", type=int, default=733,
-                        help="Three-digit dataset ID for nnU-Net/nnLandmark (default: 733).")
-    parser.add_argument("-ts", "--test_size", type=float, default=0.20,
-                        help="Percentage of the dataset to allocate to the test set (default: 0.20 for 20%).")
-    parser.add_argument("-s", "--seed", type=int, default=42,
-                        help="Random seed for reproducibility of the train/test split (default: 42).")
+
+    parser = argparse.ArgumentParser(
+        description=
+        "Create nnLandmark nnU-Net dataset from STS2026"
+    )
+
+    parser.add_argument(
+        "-i",
+        "--input_dir",
+        required=True,
+        type=str
+    )
+
+    parser.add_argument(
+        "-id",
+        "--dataset_id",
+        type=int,
+        default=733
+    )
+
     args = parser.parse_args()
 
-    # Set seed for reproducibility
-    random.seed(args.seed)
+    # ========================================================
+    # Paths
+    # ========================================================
 
-    # Define paths based on nnU-Net environment variables or local fallback
-    nnunet_raw = os.environ.get('nnUNet_raw') or "/work/grana_maxillo/averonese_STS2026/nnLM/nnLM_raw"
-    dataset_name = f"Dataset{args.dataset_id:03d}_STS2026"
-    output_dir = os.path.join(nnunet_raw, dataset_name)
+    nnLM_raw = (
+        os.environ.get("nnLM_raw")
+        or "./nnLM_raw"
+    )
 
-    # Subfolders setup for both Train (Tr) and Test (Ts)
-    folders = {
-        "train": {
-            "images": os.path.join(output_dir, "imagesTr"),
-            "labels": os.path.join(output_dir, "labelsTr"),
-            "case_ids": []
-        },
-        "test": {
-            "images": os.path.join(output_dir, "imagesTs"),
-            "labels": os.path.join(output_dir, "labelsTs"),
-            "case_ids": []
-        }
+
+    dataset_name = (
+        f"Dataset{args.dataset_id:03d}_STS2026"
+    )
+
+
+    output_dir = os.path.join(
+        nnLM_raw,
+        dataset_name
+    )
+
+
+    train_root = os.path.join(
+        args.input_dir,
+        "Train-Unlabeled"
+    )
+
+
+    test_root = os.path.join(
+        args.input_dir,
+        "Validation"
+    )
+
+
+
+    imagesTr = os.path.join(
+        output_dir,
+        "imagesTr"
+    )
+
+    labelsTr = os.path.join(
+        output_dir,
+        "labelsTr"
+    )
+
+    imagesTs = os.path.join(
+        output_dir,
+        "imagesTs"
+    )
+
+
+    maybe_mkdir_p(imagesTr)
+    maybe_mkdir_p(labelsTr)
+    maybe_mkdir_p(imagesTs)
+
+    # ========================================================
+    # Containers
+    # ========================================================
+
+    train_cases = []
+    test_cases = []
+    spacing_dict = {}
+    all_landmarks_voxel = {}
+    landmark_metadata = {}
+    global_landmarks = set()
+    overlap_counter = 0
+    overlap_log = []
+
+    # ========================================================
+    # Phase 1
+    # Collect landmark classes
+    # ========================================================
+
+    print("\nCollecting landmark classes...")
+
+    train_paths = [
+        p for p in glob.glob(os.path.join(train_root, "*")) if os.path.isdir(p)
+    ]
+
+    test_paths = [
+        p for p in glob.glob(os.path.join(test_root, "*")) if os.path.isdir(p)
+    ]
+
+    for patient_folder in train_paths:
+        json_files = glob.glob(os.path.join(patient_folder,"*.json"))
+
+        if not json_files:
+            continue
+
+        with open(json_files[0], "r") as f:
+            data = json.load(f)
+
+        flat = extract_flat_landmarks(data)
+
+        global_landmarks.update(
+            flat.keys()
+        )
+
+
+    sorted_landmarks = sorted(
+        list(global_landmarks)
+    )
+
+    landmark_to_id = {
+        name: idx + 1
+        for idx, name in enumerate(sorted_landmarks)
     }
 
-    for split in folders.values():
-        maybe_mkdir_p(split["images"])
-        maybe_mkdir_p(split["labels"])
+    print(
+        "Number of landmark classes:",
+        len(landmark_to_id)
+    )
 
-    # Global dictionaries for nnLandmark metadata
-    spacing_dict = {}
-    all_landmarks_voxel_dict = {}
-    global_landmark_keys = set()
+    for k,v in list(landmark_to_id.items())[:20]:
+        print(v, k)
 
-    # ==========================================
-    # PHASE 1: SCANNING & RANDOM SPLITTING
-    # ==========================================
-    print("Phase 1: Scanning dataset and performing random train/test split...")
-    all_patient_folders = [f for f in glob.glob(os.path.join(args.input_dir, "*")) if os.path.isdir(f)]
-    
-    # Filter folders to ensure they actually contain a JSON and a NIfTI file before splitting
-    valid_patient_folders = []
-    for p_folder in all_patient_folders:
-        p_id = os.path.basename(p_folder)
-        has_json = len(glob.glob(os.path.join(p_folder, "*.json"))) > 0
-        has_nifti = len(glob.glob(os.path.join(p_folder, "*.nii.gz"))) > 0
-        if has_json and has_nifti:
-            valid_patient_folders.append(p_folder)
-        else:
-            print(f" -> [Skip] Missing required files (.json or .nii.gz) in folder {p_id}")
+    # ========================================================
+    # Phase 2
+    # Convert CBCT + generate landmark labels
+    # ========================================================
 
-    total_patients = len(valid_patient_folders)
-    if total_patients == 0:
-        print("[!] Error: No valid patient folders found. Check your input directory.")
-        return
+    print("\nProcessing CBCT volumes...")
 
-    print(f"Found {total_patients} valid patients. Proceeding to shuffle and split...")
-    
-    # Shuffle randomly using the deterministic seed
-    random.shuffle(valid_patient_folders)
-    
-    # Calculate partition index
-    num_test = int(total_patients * args.test_size)
-    test_paths = valid_patient_folders[:num_test]
-    train_paths = valid_patient_folders[num_test:]
-
-    valid_dataset_structure = {
+    for split_name, patient_paths in {
         "train": train_paths,
         "test": test_paths
-    }
+    }.items():
 
-    # First pass: collect all unique landmark names from all files to create an immutable global mapping
-    print("Extracting global landmark registry keys...")
-    for split_type, paths in valid_dataset_structure.items():
-        for p_folder in paths:
-            json_file = glob.glob(os.path.join(p_folder, "*.json"))[0]
-            with open(json_file, 'r') as f:
-                try:
-                    data = json.load(f)
-                    flat_lms = extract_flat_landmarks(data)
-                    global_landmark_keys.update(flat_lms.keys())
-                except Exception as e:
-                    print(f" -> [Error] Corrupted JSON for patient {os.path.basename(p_folder)}: {e}")
+        print("\nSplit:", split_name)
 
-    sorted_keys = sorted(list(global_landmark_keys))
-    landmark_to_id = {name: idx + 1 for idx, name in enumerate(sorted_keys)}
-    print(f"Total unique landmarks found across entire dataset: {len(landmark_to_id)}")
+        for patient_folder in patient_paths:
+            patient_id = os.path.basename(patient_folder)
 
-    # ==========================================
-    # PHASE 2: PROCESSING VOLUMES & GEOMETRY
-    # ==========================================
-    print("\nPhase 2: Processing geometric transformations and generating NIfTI files...")
+            print("Processing:", patient_id)
 
-    for split_type, patient_paths in valid_dataset_structure.items():
-        print(f"\n--- Processing Split: {split_type.upper()} ({len(patient_paths)} patients) ---")
-        img_target_dir = folders[split_type]["images"]
-        lbl_target_dir = folders[split_type]["labels"]
-        
-        for p_folder in patient_paths:
-            p_id = os.path.basename(p_folder)
-            print(f"Processing Patient: {p_id}")
-            
-            cbct_path = glob.glob(os.path.join(p_folder, "*.nii.gz"))[0]
-            json_path = glob.glob(os.path.join(p_folder, "*.json"))[0]
-            
-            # Robust matrix searching (matches 'matrix.txt', 'matrix.npy', etc.)
-            matrix_files = (glob.glob(os.path.join(p_folder, "*matrix*.*")) or 
-                            glob.glob(os.path.join(p_folder, "*.npy")) or 
-                            glob.glob(os.path.join(p_folder, "*.txt")))
-            if not matrix_files:
-                print(f"  [!] Error: Transformation matrix not found for {p_id}. Skipping.")
+            # ------------------------------------------------
+            # CBCT
+            # ------------------------------------------------
+
+            nii_files = glob.glob(os.path.join(patient_folder, "*.nii.gz"))
+
+            if not nii_files:
+                print("Missing CBCT:", patient_id)
                 continue
-            
-            matrix_path = matrix_files[0]
-            T = np.load(matrix_path) if matrix_path.endswith('.npy') else np.loadtxt(matrix_path)
-                
+
+
+            cbct_path = nii_files[0]
             cbct_img = sitk.ReadImage(cbct_path)
-            
-            # Store image spacing metadata
-            spacing_dict[p_id] = {
-                "image_spacing": list(cbct_img.GetSpacing()),
-                "annotation_spacing": None
+
+            # ------------------------------------------------
+            # Test images
+            # ------------------------------------------------
+
+            if split_name == "test":
+                sitk.WriteImage(
+                    cbct_img,
+                    os.path.join(
+                        imagesTs,
+                        f"{patient_id}_0000.nii.gz"
+                    )
+                )
+
+                test_cases.append(patient_id)
+                continue
+
+            # =================================================
+            # Training
+            # =================================================
+
+            json_files = glob.glob(os.path.join(patient_folder,"*.json"))
+
+            if not json_files:
+                print("Missing landmark JSON:",patient_id)
+                continue
+
+            with open(json_files[0],"r") as f:
+                landmark_json = json.load(f)
+
+            flat_landmarks = extract_flat_landmarks(landmark_json)
+
+            # ------------------------------------------------
+            # Load transformations
+            # ------------------------------------------------
+
+            upper_matrix_path = os.path.join(
+                patient_folder,
+                "from_refframe_to_cbct_upper.npy"
+            )
+
+            lower_matrix_path = os.path.join(
+                patient_folder,
+                "from_refframe_to_cbct_lower.npy"
+            )
+
+            if not os.path.exists(upper_matrix_path):
+                print("Missing upper transformation:", patient_id)
+                continue
+
+            if not os.path.exists(lower_matrix_path):
+                print("Missing lower transformation:", patient_id)
+                continue
+
+            T_upper = np.load(
+                upper_matrix_path
+            )
+
+            T_lower = np.load(
+                lower_matrix_path
+            )
+
+            if T_upper.shape != (4,4):
+                raise RuntimeError(
+                    f"Wrong upper matrix shape {patient_id}"
+                )
+
+            if T_lower.shape != (4,4):
+                raise RuntimeError(
+                    f"Wrong lower matrix shape {patient_id}"
+                )
+
+            # ------------------------------------------------
+            # Metadata spacing
+            # ------------------------------------------------
+
+            spacing_dict[patient_id] = {
+                "image_spacing":
+                    list(
+                        cbct_img.GetSpacing()
+                    ),
+                "annotation_spacing":
+                    None
             }
-            
-            label_img = sitk.Image(cbct_img.GetSize(), sitk.sitkUInt16)
-            label_img.CopyInformation(cbct_img)
-            label_array = sitk.GetArrayFromImage(label_img)
-            
-            with open(json_path, 'r') as f:
-                json_data = json.load(f)
-            flat_lms = extract_flat_landmarks(json_data)
-            
-            patient_voxel_coords = {}
-            
-            for lm_name, coords in flat_lms.items():
-                if lm_name not in landmark_to_id:
+
+            # ------------------------------------------------
+            # Empty label image
+            # ------------------------------------------------
+
+            label_img = sitk.Image(
+                cbct_img.GetSize(),
+                sitk.sitkUInt16
+            )
+
+            label_img.CopyInformation(
+                cbct_img
+            )
+
+            label_array = sitk.GetArrayFromImage(
+                label_img
+            )
+
+            case_voxel_landmarks = {}
+            case_metadata = {}
+
+            # =================================================
+            # Each landmark
+            # =================================================
+
+            for landmark_name, landmark_info in flat_landmarks.items():
+                if landmark_name not in landmark_to_id:
                     continue
-                label_id = landmark_to_id[lm_name]
-                p_ios = np.array([coords[0], coords[1], coords[2], 1.0])
-                p_cbct_physical = (T @ p_ios)[:3]
-                
+
+                coords = landmark_info["coords"]
+                arch = landmark_info["arch"]
+                class_id = landmark_to_id[
+                    landmark_name
+                ]
+
+                # ---------------------------------------------
+                # IOS homogeneous coordinate
+                # ---------------------------------------------
+
+                p_ios = np.array(
+                    [
+                        coords[0],
+                        coords[1],
+                        coords[2],
+                        1.0
+                    ]
+                )
+
+                # ---------------------------------------------
+                # Apply correct transformation
+                # ---------------------------------------------
+
+                if arch == "upper":
+                    p_cbct = (T_upper @ p_ios)[:3]
+
+                elif arch == "lower":
+                    p_cbct = (T_lower @ p_ios)[:3]
+
+                else:
+                    print("Unknown arch:", landmark_name)
+                    continue
+
+                # ---------------------------------------------
+                # Physical CBCT -> voxel
+                # ---------------------------------------------
+
                 try:
-                    voxel_idx = cbct_img.TransformPhysicalPointToIndex(p_cbct_physical)
-                    x, y, z = voxel_idx
-                    patient_voxel_coords[lm_name] = [int(x), int(y), int(z)]
-                    
-                    # Generate 3x3x3 cubic voxel patches
-                    for dz in [-1, 0, 1]:
-                        for dy in [-1, 0, 1]:
-                            for dx in [-1, 0, 1]:
-                                nz, ny, nx = z + dz, y + dy, x + dx
-                                if 0 <= nz < label_array.shape[0] and 0 <= ny < label_array.shape[1] and 0 <= nx < label_array.shape[2]:
-                                    label_array[nz, ny, nx] = label_id
-                                    
+                    voxel_index = (
+                        cbct_img
+                        .TransformPhysicalPointToIndex(
+                            tuple(p_cbct)
+                        )
+                    )
+
                 except Exception as e:
-                    print(f"  [!] Could not map landmark {lm_name} inside CBCT volume for patient {p_id}: {e}")
+                    print("Mapping error:", landmark_name, e)
+                    continue
 
-            all_landmarks_voxel_dict[p_id] = patient_voxel_coords
+                x,y,z = voxel_index
+                size_x, size_y, size_z = (cbct_img.GetSize())
 
-            final_label_img = sitk.GetImageFromArray(label_array)
-            final_label_img.CopyInformation(cbct_img)
-            
-            # Save images using ONLY the patient ID folder name as case ID (e.g., 003_0000.nii.gz)
-            sitk.WriteImage(cbct_img, os.path.join(img_target_dir, f"{p_id}_0000.nii.gz"))
-            sitk.WriteImage(final_label_img, os.path.join(lbl_target_dir, f"{p_id}.nii.gz"))
-            folders[split_type]["case_ids"].append(p_id)
+                if not (0 <= x < size_x and 0 <= y < size_y and 0 <= z < size_z):
+                    print("Landmark outside volume:", patient_id, landmark_name)
+                    continue
 
-    # ==========================================
-    # PHASE 3: GENERATING METADATA AND SPLIT JSON FILES
-    # ==========================================
-    print("\nPhase 3: Generating all metadata and split JSON files...")
-    
-    # 1. Standard nnU-Net dataset.json
-    dataset_json = {
-        "channel_names": {"0": "CBCT"},
-        "labels": {"background": 0, **{name: idx for name, idx in landmark_to_id.items()}},
-        "numTraining": len(folders["train"]["case_ids"]),
-        "file_ending": ".nii.gz"
-    }
-    save_json(dataset_json, os.path.join(output_dir, "dataset.json"))
-    
-    # 2. nnLandmark specific spacing.json
+                # =================================================
+                # Save landmark coordinates
+                # =================================================
+
+                case_voxel_landmarks[landmark_name] = [
+                    int(x),
+                    int(y),
+                    int(z)
+                ]
+
+                case_metadata[landmark_name] = {
+                    "class_id": int(class_id),
+                    "arch": arch,
+                    "physical_cbct":
+                        [
+                            float(v)
+                            for v in p_cbct
+                        ],
+                    "voxel_cbct":
+                        [
+                            int(x),
+                            int(y),
+                            int(z)
+                        ]
+                }
+
+                # =================================================
+                # Create 3x3x3 label cube
+                # =================================================
+
+                for dz in [-1,0,1]:
+                    for dy in [-1,0,1]:
+                        for dx in [-1,0,1]:
+
+                            nx = x + dx
+                            ny = y + dy
+                            nz = z + dz
+
+                            if (0 <= nx < label_array.shape[2] and 0 <= ny < label_array.shape[1] and 0 <= nz < label_array.shape[0]):
+                                previous = label_array[
+                                    nz,
+                                    ny,
+                                    nx
+                                ]
+
+                                if previous == 0:
+                                    label_array[nz,ny,nx] = class_id
+                                elif previous == class_id:
+                                    pass
+                                else:
+                                    overlap_counter +=1
+                                    overlap_log.append({
+                                        "patient_id": patient_id,
+                                        "existing_class": int(previous),
+                                        "new_class": int(class_id),
+                                        "voxel": [
+                                            int(nx),
+                                            int(ny),
+                                            int(nz)
+                                        ]
+                                    })
+
+            # ------------------------------------------------
+            # Save metadata
+            # ------------------------------------------------
+
+            all_landmarks_voxel[patient_id] = (
+                case_voxel_landmarks
+            )
+
+            landmark_metadata[patient_id] = (
+                case_metadata
+            )
+
+            # ------------------------------------------------
+            # Save images
+            # ------------------------------------------------
+
+            final_label_img = sitk.GetImageFromArray(
+                label_array
+            )
+
+            final_label_img.CopyInformation(
+                cbct_img
+            )
+
+            sitk.WriteImage(cbct_img, os.path.join(imagesTr, f"{patient_id}_0000.nii.gz"))
+
+            sitk.WriteImage(final_label_img, os.path.join(labelsTr, f"{patient_id}.nii.gz"))
+
+            train_cases.append(
+                patient_id
+            )
+
+    # ========================================================
+    # Phase 3
+    # Save JSON metadata
+    # ========================================================
+
+    print("\nSaving metadata...")
+
+    save_json(all_landmarks_voxel, os.path.join(output_dir, "all_landmarks_voxel.json"))
+    save_json(landmark_metadata, os.path.join(output_dir, "landmark_metadata.json"))
+    save_json(overlap_log, os.path.join(output_dir, "landmark_overlap_log.json"))
     save_json(spacing_dict, os.path.join(output_dir, "spacing.json"))
-    
-    # 3. nnLandmark specific all_landmarks_voxel.json
-    save_json(all_landmarks_voxel_dict, os.path.join(output_dir, "all_landmarks_voxel.json"))
-    
-    # 4. Integrated Split Manifest
-    tr_ids = sorted(folders["train"]["case_ids"])
-    ts_ids = sorted(folders["test"]["case_ids"])
-    split_manifest = {
-        "imagesTr": tr_ids,
-        "imagesTs": ts_ids,
-        "all": sorted(list(set(tr_ids) | set(ts_ids)))
-    }
-    
-    split_json_dir = os.path.join(output_dir, "All_split_jsons")
-    maybe_mkdir_p(split_json_dir)
-    save_json(split_manifest, os.path.join(split_json_dir, f"split_{dataset_name}.json"))
 
-    print(f"\n[DONE] Dataset '{dataset_name}' successfully built and split!")
-    print(f"Allocated: {len(tr_ids)} to Training (imagesTr) | {len(ts_ids)} to Testing (imagesTs)")
-    print(f"All files saved inside: {output_dir}")
+    # ========================================================
+    # Split JSON
+    # ========================================================
+
+    split_dir = os.path.join(
+        output_dir,
+        "All_split_jsons"
+    )
+
+    maybe_mkdir_p(
+        split_dir
+    )
+
+    split_json = {
+        "imagesTr": sorted(train_cases),
+        "imagesTs": sorted(test_cases),
+        "all": sorted(list(set(train_cases) | set(test_cases)))
+    }
+
+    save_json(split_json, os.path.join(split_dir, f"split_{dataset_name}.json"))
+
+    # ========================================================
+    # Generate dataset.json using nnU-Net function
+    # ========================================================
+
+    labels = {
+        "background":0,
+        **landmark_to_id
+    }
+
+    generate_dataset_json(
+        output_folder=output_dir,
+        channel_names={
+            0:"CBCT"
+        },
+        labels=labels,
+        num_training_cases=len(train_cases),
+        file_ending=".nii.gz",
+        dataset_name=dataset_name,
+        description="STS2026 CBCT dental landmark localization dataset",
+        converted_by="AimageLab-zip"
+    )
+
+
+
+    print("\n==============================")
+    print(" DATASET CREATED SUCCESSFULLY ")
+    print("==============================")
+
+    print(
+        "Training:",
+        len(train_cases)
+    )
+
+    print(
+        "Testing:",
+        len(test_cases)
+    )
+
+    print(
+        "Landmark classes:",
+        len(landmark_to_id)
+    )
+
+    print(
+    "\nTotal landmark overlaps:",
+    overlap_counter
+    )
+
+    print(
+        "Output:",
+        output_dir
+    )
 
 if __name__ == "__main__":
     main()
