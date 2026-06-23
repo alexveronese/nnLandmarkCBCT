@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=nnLandmark
-#SBATCH --output=/work/tesi_averonese/nnLandmark/logs/nn_land_train_fold0%j.out
-#SBATCH --error=/work/tesi_averonese/nnLandmark/logs/nn_land_train_fold0%j.err
+#SBATCH --output=/work/tesi_averonese/nnLandmark/logs/nn_land_train_fold4%j.out
+#SBATCH --error=/work/tesi_averonese/nnLandmark/logs/nn_land_train_fold4%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -26,7 +26,7 @@ export nnLM_raw=/work/grana_maxillo/averonese_STS2026/nnLM/nnLM_raw
 
 DATASET_DIR=/work/grana_maxillo/averonese_STS2026/
 DATASET_ID=733
-FOLD=0
+FOLD=4
 
 cd /homes/averonese/nnLandmark/
 
