@@ -11,6 +11,12 @@
 #SBATCH --partition=all_usr_prod
 #SBATCH --time=24:00:00
 
+module unload python/3.11.11-gcc-11.4.0 
+module load python/3.10.16-gcc-11.4.0
+
+module unload cuda
+module load py-torch/2.8.0-gcc-11.4.0-cuda-12.6.3
+
 source /homes/averonese/nnLandmark/nnlandmark-venv/bin/activate
 
 export nnLM_results=/work/grana_maxillo/averonese_STS2026/nnLM/nnLM_results
