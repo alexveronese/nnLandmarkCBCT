@@ -13,7 +13,9 @@ from nnlandmark.dataset_conversion.generate_dataset_json import (
 )
 
 EXCLUDED_FEATURES = [
-    "basePlane"
+    "basePlane",
+    "bracket",
+    "gingival"
 ]
 
 def save_json(obj, file: str, indent: int = 4, sort_keys: bool = True) -> None:
