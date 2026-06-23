@@ -218,6 +218,8 @@ def main():
     global_landmarks = set()
     overlap_counter = 0
     overlap_log = []
+    landmark_frequency = {}
+    landmark_arch_count = {}
 
     # ========================================================
     # Phase 1
@@ -249,6 +251,27 @@ def main():
             flat.keys()
         )
 
+    # ==========================================
+    # Count landmark occurrence
+    # ==========================================
+
+    #present_landmarks = set(flat.keys())
+
+    for landmark_name, landmark_info in flat.items():
+        landmark_frequency[landmark_name] = (landmark_frequency.get(landmark_name, 0) + 1)
+        arch = landmark_info["arch"]
+
+        if landmark_name not in landmark_arch_count:
+            landmark_arch_count[landmark_name] = {
+                "upper": 0,
+                "lower": 0,
+                "unknown": 0
+            }
+
+        if arch in ["upper", "lower"]:
+            landmark_arch_count[landmark_name][arch] += 1
+        else:
+            landmark_arch_count[landmark_name]["unknown"] += 1
 
     sorted_landmarks = sorted(
         list(global_landmarks)
@@ -561,6 +584,25 @@ def main():
             train_cases.append(
                 patient_id
             )
+        
+    # ==========================================
+    # Generate landmark statistics
+    # ==========================================
+
+    num_training_cases = len(train_cases)
+    landmark_statistics = {}
+    
+    for landmark_name in sorted_landmarks:
+        occurrences = landmark_frequency.get(landmark_name, 0)
+        missing = num_training_cases - occurrences
+        
+        landmark_statistics[landmark_name] = {
+            "class_id": landmark_to_id[landmark_name],
+            "occurrences": occurrences,
+            "patient_missing":missing,
+            "percentage": round(100 * occurrences / num_training_cases, 2),
+            "arch_distribution": landmark_arch_count.get(landmark_name, {})
+        }
 
     # ========================================================
     # Phase 3
@@ -571,6 +613,7 @@ def main():
 
     save_json(all_landmarks_voxel, os.path.join(output_dir, "all_landmarks_voxel.json"))
     save_json(landmark_metadata, os.path.join(output_dir, "landmark_metadata.json"))
+    save_json(landmark_statistics, os.path.join(output_dir, "landmark_statistics.json"))
     save_json(overlap_log, os.path.join(output_dir, "landmark_overlap_log.json"))
     save_json(spacing_dict, os.path.join(output_dir, "spacing.json"))
 
