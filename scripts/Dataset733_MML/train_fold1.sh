@@ -16,7 +16,7 @@ module load python/3.10.16-gcc-11.4.0
 
 source /homes/averonese/nnLandmark/nnlandmark-venv/bin/activate
 
-export nnUNet_compile=False
+#export nnUNet_compile=False
 export nnLM_results=/work/grana_maxillo/averonese_STS2026/nnLM/nnLM_results
 export nnLM_preprocessed=/work/grana_maxillo/averonese_STS2026/nnLM/nnLM_preprocessed
 export nnLM_raw=/work/grana_maxillo/averonese_STS2026/nnLM/nnLM_raw
