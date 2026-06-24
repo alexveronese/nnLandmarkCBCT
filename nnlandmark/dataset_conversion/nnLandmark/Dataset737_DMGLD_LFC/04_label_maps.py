@@ -59,7 +59,7 @@ def main():
     ap = argparse.ArgumentParser(description="Generate label masks from nnLandmark voxel JSONs and imagesTr/imagesTs.")
     ap.add_argument("--images", default="/path/to/2024_Ertl_nnLandmark/nnunet_data/nnUNet_raw/Dataset737_DMGLD_LFC/imagesTs", help="Path to images root (either the dataset root containing imagesTr/imagesTs, or a single images dir).")
     ap.add_argument("--landmarks", default="/path/to/2024_Ertl_nnLandmark/nnunet_data/nnUNet_raw/Dataset737_DMGLD_LFC/all_landmarks_voxel_test.json", help="Path to landmarks JSON (e.g., all_landmarks_voxel_train.json or test).")
-    ap.add_argument("--name2label", default="/path/to/2024_Ertl_nnLandmark/nnunet_data/nnUNet_raw/Dataset737_DMGLD_LFC/name_to_label.json", help="Optional path to name_to_label.json; if omitted, derive from landmark names.")
+    ap.add_argument("--name2label", default=None, help="Optional path to name_to_label.json; if omitted, derive from landmark names.")
     ap.add_argument("--output", default="/path/to/2024_Ertl_nnLandmark/nnunet_data/nnUNet_raw/Dataset737_DMGLD_LFC/labelsTs", help="Output directory for label masks (e.g., labelsTr or labelsTs).")
     ap.add_argument("--half", type=int, default=1, help="Half cube size (1 => 3x3x3).")
     ap.add_argument("--dtype", default="uint8", choices=["uint8", "uint16", "int16", "int32"], help="Output label volume dtype.")
