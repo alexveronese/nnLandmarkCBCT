@@ -115,7 +115,7 @@ def analyze_split(split_name: str, img_dir: Path, lbl_dir: Path, spacing_tol=0.0
         print(f"  {oc}: {cnt} cases (e.g., {orient_example[oc]})")
 
 def main():
-    root = Path("/path/to/2024_Ertl_nnLandmark/data/DMGLD_dataset/LFC_dataset/")
+    root = Path("/work/grana_maxillo/averonese_STS2026/LFC_dataset")
     analyze_split("train", root / "train", root / "train_label")
     analyze_split("valid", root / "valid", root / "valid_label")
 
