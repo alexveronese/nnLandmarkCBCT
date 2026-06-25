@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=nnLandmark
-#SBATCH --output=/work/tesi_averonese/nnLandmark/logs/nn_land_plan_experiment%j.out
-#SBATCH --error=/work/tesi_averonese/nnLandmark/logs/nn_land_plan_experiment%j.err
+#SBATCH --output=/work/tesi_averonese/nnLandmark/logs/STS_train_fold1_%j.out
+#SBATCH --error=/work/tesi_averonese/nnLandmark/logs/STS_train_fold1_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -22,11 +22,14 @@ export nnLM_raw=/work/grana_maxillo/averonese_STS2026/nnLM/nnLM_raw
 
 DATASET_DIR=/work/grana_maxillo/averonese_STS2026/
 DATASET_ID=001
+FOLD=1
 
 cd /homes/averonese/nnLandmark/
 
-nnLM_plan_experiment \
-    -d ${DATASET_ID} \
-    -pl nnUNetPlannerResEncM
+nnLM_train \
+    ${DATASET_ID} \
+    3d_fullres \
+    ${FOLD} \
+    -p nnUNetResEncUNetMPlans
 
-echo "Experiment plan completed successfully!"
+echo "Training completed successfully!"
