@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=nnLandmark
-#SBATCH --output=/work/tesi_averonese/nnLandmark/logs/MML_predict%j.out
-#SBATCH --error=/work/tesi_averonese/nnLandmark/logs/MML_predict%j.err
+#SBATCH --output=/work/tesi_averonese/nnLandmark/logs/LFC_predict%j.out
+#SBATCH --error=/work/tesi_averonese/nnLandmark/logs/LFC_predict%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
