@@ -48,10 +48,18 @@ def find_image_for_case(images_dir: Path, case: str) -> Optional[Path]:
 
 def derive_name_to_label(names: list[str]) -> dict[str, int]:
     import re
+
+    def landmark_key(name):
+        m = re.match(r"landmark_(\d+)_(\d+)$", name)
+        if m:
+            return (int(m.group(1)), int(m.group(2)))
+        return (999999, 999999)
+
     out = {}
-    for n in sorted(names, key=lambda s: int(re.search(r"(\d+)$", s).group(1)) if re.search(r"(\d+)$", s) else s):
-        m = re.search(r"(\d+)$", n)
-        out[n] = int(m.group(1)) if m else len(out) + 1
+
+    for idx, name in enumerate(sorted(names, key=landmark_key), start=1):
+        out[name] = idx
+
     return out
 
 
@@ -85,6 +93,9 @@ def main():
         for _, d in landmarks.items():
             all_names.update(d.keys())
         name_to_label = derive_name_to_label(sorted(all_names))
+        print("\n=== NAME TO LABEL ===")
+        for k, v in name_to_label.items():
+            print(f"{k} -> {v}")
 
     print(f"Images dir: {images_dir}")
     print(f"Landmarks: {len(landmarks)} cases")
