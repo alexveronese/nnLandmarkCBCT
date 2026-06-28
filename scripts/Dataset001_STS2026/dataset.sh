@@ -27,7 +27,7 @@ PATIENTS_PATH=/work/grana_maxillo/averonese_STS2026/MICCAI-Chllenge-STS26-Task2/
 
 cd /homes/averonese/nnLandmark/
 
-python /nnlandmark/dataset_conversion/nnLandmark/Dataset001_STS2026/prepare_dataset_splits.py \
+python /homes/averonese/nnLandmark/nnlandmark/dataset_conversion/nnLandmark/Dataset001_STS2026/prepare_dataset_splits.py \
     -i ${DATASET_DIR} \
     -id ${DATASET_ID} \
     --landmarks_json ${JSON_PATH} \
