@@ -133,76 +133,35 @@ def extract_flat_landmarks(json_data):
 
 def main():
 
-    parser = argparse.ArgumentParser(
-        description=
-        "Create nnLandmark nnU-Net dataset from STS2026"
-    )
-
-    parser.add_argument(
-        "-i",
-        "--input_dir",
-        required=True,
-        type=str
-    )
-
-    parser.add_argument(
-        "-id",
-        "--dataset_id",
-        type=int,
-        default=733
-    )
-
+    parser = argparse.ArgumentParser(description="Create nnLandmark nnU-Net dataset from STS2026")
+    parser.add_argument("-i","--input_dir",required=True,type=str)
+    parser.add_argument("-id","--dataset_id",type=int,default=733)
+    parser.add_argument("--landmarks_json",required=True, type=str, help="Path to global landmarks.json file")
+    parser.add_argument("--patients_file",required=True, type=str, help="Text file containing patient folder names to process")
     args = parser.parse_args()
 
     # ========================================================
     # Paths
     # ========================================================
 
-    nnLM_raw = (
-        os.environ.get("nnLM_raw")
-        or "./nnLM_raw"
-    )
+    nnLM_raw = (os.environ.get("nnLM_raw")or "./nnLM_raw")
+    dataset_name = (f"Dataset{args.dataset_id:03d}_STS2026")
+    output_dir = os.path.join(nnLM_raw, dataset_name)
+    train_root = os.path.join(args.input_dir, "Train-Unlabeled")
+    test_root = os.path.join(args.input_dir, "Validation")
+    imagesTr = os.path.join(output_dir, "imagesTr")
+    labelsTr = os.path.join(output_dir, "labelsTr")
+    imagesTs = os.path.join(output_dir, "imagesTs")
 
+    with open(args.landmarks_json, "r") as f:
+        all_landmark_json = json.load(f)
 
-    dataset_name = (
-        f"Dataset{args.dataset_id:03d}_STS2026"
-    )
-
-
-    output_dir = os.path.join(
-        nnLM_raw,
-        dataset_name
-    )
-
-
-    train_root = os.path.join(
-        args.input_dir,
-        "Train-Unlabeled"
-    )
-
-
-    test_root = os.path.join(
-        args.input_dir,
-        "Validation"
-    )
-
-
-
-    imagesTr = os.path.join(
-        output_dir,
-        "imagesTr"
-    )
-
-    labelsTr = os.path.join(
-        output_dir,
-        "labelsTr"
-    )
-
-    imagesTs = os.path.join(
-        output_dir,
-        "imagesTs"
-    )
-
+    with open(args.patients_file, "r") as f:
+        selected_patients = {
+            line.strip()
+            for line in f
+            if line.strip()
+        }
 
     maybe_mkdir_p(imagesTr)
     maybe_mkdir_p(labelsTr)
@@ -231,49 +190,80 @@ def main():
     print("\nCollecting landmark classes...")
 
     train_paths = [
-        p for p in glob.glob(os.path.join(train_root, "*")) if os.path.isdir(p)
+        os.path.join(train_root, patient_id)
+        for patient_id in selected_patients
+        if os.path.isdir(
+            os.path.join(train_root, patient_id)
+        )
     ]
 
     test_paths = [
         p for p in glob.glob(os.path.join(test_root, "*")) if os.path.isdir(p)
     ]
 
-    for patient_folder in train_paths:
-        json_files = glob.glob(os.path.join(patient_folder,"*.json"))
+    found_patients = {
+        os.path.basename(p)
+        for p in train_paths
+    }
 
-        if not json_files:
-            continue
+    missing_patients = (
+        selected_patients -
+        found_patients
+    )
 
-        with open(json_files[0], "r") as f:
-            data = json.load(f)
-
-        flat = extract_flat_landmarks(data)
-
-        global_landmarks.update(
-            flat.keys()
+    if missing_patients:
+        print(
+            "WARNING - missing patient folders:"
         )
 
-    # ==========================================
-    # Count landmark occurrence
-    # ==========================================
+        for p in sorted(missing_patients):
+            print("  ", p)
 
-    #present_landmarks = set(flat.keys())
+    for patient_folder in train_paths:
+        patient_id = os.path.basename(patient_folder)
+        patient_landmarks = {
+            k:v
+            for k,v in all_landmark_json.items()
+            if k.split("_")[0] == patient_id
+        }
 
-    for landmark_name, landmark_info in flat.items():
-        landmark_frequency[landmark_name] = (landmark_frequency.get(landmark_name, 0) + 1)
-        arch = landmark_info["arch"]
+        if not patient_landmarks:
+            print(
+                "Missing landmarks:",
+                patient_id
+            )
+            continue
 
-        if landmark_name not in landmark_arch_count:
-            landmark_arch_count[landmark_name] = {
-                "upper": 0,
-                "lower": 0,
-                "unknown": 0
-            }
+        flat = extract_flat_landmarks(patient_landmarks)
+        global_landmarks.update(flat.keys())
 
-        if arch in ["upper", "lower"]:
-            landmark_arch_count[landmark_name][arch] += 1
-        else:
-            landmark_arch_count[landmark_name]["unknown"] += 1
+        # ==========================================
+        # Count landmark occurrence
+        # ==========================================
+
+        present_landmarks = set(flat.keys())
+
+        for landmark_name in present_landmarks:
+            landmark_frequency[landmark_name] = (
+                landmark_frequency.get(
+                    landmark_name,
+                    0
+                ) + 1
+            )
+
+            arch = flat[landmark_name]["arch"]
+
+            if landmark_name not in landmark_arch_count:
+                landmark_arch_count[landmark_name] = {
+                    "upper":0,
+                    "lower":0,
+                    "unknown":0
+                }
+
+            if arch in ["upper","lower"]:
+                landmark_arch_count[landmark_name][arch] += 1
+            else:
+                landmark_arch_count[landmark_name]["unknown"] += 1
 
     sorted_landmarks = sorted(
         list(global_landmarks)
@@ -345,16 +335,17 @@ def main():
             # Training
             # =================================================
 
-            json_files = glob.glob(os.path.join(patient_folder,"*.json"))
+            patient_landmarks = {
+                k:v
+                for k,v in all_landmark_json.items()
+                if k.split("_")[0] == patient_id
+            }
 
-            if not json_files:
-                print("Missing landmark JSON:",patient_id)
+            if not patient_landmarks:
+                print("Missing landmarks:", patient_id)
                 continue
 
-            with open(json_files[0],"r") as f:
-                landmark_json = json.load(f)
-
-            flat_landmarks = extract_flat_landmarks(landmark_json)
+            flat_landmarks = extract_flat_landmarks(patient_landmarks)
 
             # ------------------------------------------------
             # Load transformations
