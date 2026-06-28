@@ -20,13 +20,17 @@ export nnLM_results=/work/grana_maxillo/averonese_STS2026/nnLM/nnLM_results
 export nnLM_preprocessed=/work/grana_maxillo/averonese_STS2026/nnLM/nnLM_preprocessed
 export nnLM_raw=/work/grana_maxillo/averonese_STS2026/nnLM/nnLM_raw
 
-DATASET_DIR=/work/grana_maxillo/averonese_STS2026/
+DATASET_DIR=/work/grana_maxillo/averonese_STS2026/MICCAI-Chllenge-STS26-Task2
 DATASET_ID=001
+JSON_PATH=/work/grana_maxillo/averonese_STS2026/MICCAI-Chllenge-STS26-Task2/landmarks.json
+PATIENTS_PATH=/work/grana_maxillo/averonese_STS2026/MICCAI-Chllenge-STS26-Task2/patients.txt
 
 cd /homes/averonese/nnLandmark/
 
 python /nnlandmark/dataset_conversion/nnLandmark/Dataset001_STS2026/prepare_dataset_splits.py \
     -i ${DATASET_DIR} \
-    -id ${DATASET_ID}
+    -id ${DATASET_ID} \
+    --landmarks_json ${JSON_PATH} \
+    --patients_file ${PATIENTS_PATH}
 
 echo "Dataset splits prepared successfully!"
