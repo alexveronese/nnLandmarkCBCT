@@ -507,7 +507,7 @@ class nnLandmark_trainer_base(MotorRegressionTrainer_BCEtopK20Loss_moreDA_3_5kep
         self.edt_radius = 15
         self.enable_deep_supervision = False
         #self.num_epochs = 1000
-        self.num_epochs = 100
+        self.num_epochs = 300
 
     def configure_rotation_dummyDA_mirroring_and_inital_patch_size(self):
         """
