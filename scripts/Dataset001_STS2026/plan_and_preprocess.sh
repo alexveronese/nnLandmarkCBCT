@@ -4,8 +4,8 @@
 #SBATCH --error=/work/tesi_averonese/nnLandmark/logs/STS_plan_preproc%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=200G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=256G
 #SBATCH --account=tesi_averonese
 #SBATCH --partition=boost_usr_prod
 #SBATCH --time=24:00:00
@@ -29,7 +29,7 @@ nnLM_plan_and_preprocess \
     -c 3d_fullres \
     -pl nnUNetPlannerResEncM \
     --verify_dataset_integrity \
-    -np 16 \
+    -np 8 \
     --clean
 
 echo "Plan and preprocess completed successfully!"
