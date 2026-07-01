@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem=70G
+#SBATCH --mem=64G
 #SBATCH --account=tesi_averonese
 #SBATCH --partition=all_usr_prod
 #SBATCH --time=24:00:00
