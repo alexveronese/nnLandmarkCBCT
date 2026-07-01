@@ -3,8 +3,10 @@ from pathlib import Path
 from batchgenerators.utilities.file_and_folder_operations import join
 from nnlandmark.dataset_conversion.generate_dataset_json import generate_dataset_json
 
+
+
 # ------------------------------------------------------------------ paths
-root = Path("/path/to/Project_nnLandmark/nnunet_data/nnUNet_raw/Dataset733_MML")
+root = Path("/work/grana_maxillo/averonese_STS2026/nnLM/nnLM_raw/Dataset733_MML")
 imagesTr = root / "imagesTr"
 imagesTs = root / "imagesTs"
 
