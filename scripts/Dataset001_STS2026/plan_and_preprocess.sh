@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=128G
 #SBATCH --account=tesi_averonese
-#SBATCH --partition=all_usr_prod
+#SBATCH --partition=boost_usr_prod
 #SBATCH --time=24:00:00
 
 #module unload python/3.11.11-gcc-11.4.0 
