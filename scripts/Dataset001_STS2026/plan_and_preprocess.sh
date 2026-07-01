@@ -4,12 +4,11 @@
 #SBATCH --error=/work/tesi_averonese/nnLandmark/logs/STS_plan_preproc%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=16
 #SBATCH --mem=70G
-#SBATCH --gres=gpu:1
 #SBATCH --account=tesi_averonese
 #SBATCH --partition=all_usr_prod
-#SBATCH --time=4:00:00
+#SBATCH --time=24:00:00
 
 #module unload python/3.11.11-gcc-11.4.0 
 #module load python/3.10.16-gcc-11.4.0
@@ -26,8 +25,11 @@ DATASET_ID=001
 cd /homes/averonese/nnLandmark/
 
 nnLM_plan_and_preprocess \
-     -d ${DATASET_ID} \
-     -c 3d_fullres \
-     --verify_dataset_integrity
+    -d ${DATASET_ID} \
+    -c 3d_fullres \
+    -pl nnUNetPlannerResEncM \
+    --verify_dataset_integrity \
+    -np 16 \
+    --clean
 
 echo "Plan and preprocess completed successfully!"
